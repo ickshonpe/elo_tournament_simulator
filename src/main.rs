@@ -6,24 +6,10 @@ extern crate serde_derive;
 mod tournament_data;
 mod player;
 mod tournament;
+mod util;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Player {
-    pub name: String,
-    pub elo: i64,
-    pub seeding: i64    // lower means better
-}
-
-impl Player {
-    pub fn new(name: &str, elo: i64, seeding: i64) -> Player {
-        let name = String::from(name);
-        Player {
-            name,
-            elo,
-            seeding
-        }
-    }
-}
+use player::Player;
+use util::interleave_slices;
 
 #[derive(Clone)]
 struct GroupRecord {
@@ -94,7 +80,7 @@ fn main() {
     }
 
     // Knockout stages
-    let mut knockout_players: Vec<Player> = interleave_slices(&knockout_high_seeds, &knockout_low_seeds);
+    let mut knockout_players: Vec<Player> = interleave_slices(&knockout_high_seeds, &knockout_low_seeds.iter().rev().cloned().collect::<Vec<Player>>());
 
     let number_of_knockout_rounds = calculate_number_of_rounds(knockout_players_count);
     println!("Number of knockout rounds: {}", number_of_knockout_rounds);
@@ -205,27 +191,7 @@ fn group_comparator(a: &GroupRecord, b: &GroupRecord) -> Ordering {
     Ordering::Less
 }
 
-fn seeding_comparator(player_a: &Player, player_b: &Player) -> Ordering {
-    if player_a.seeding < player_b.seeding {
-        Ordering::Less
-    } else if player_a.seeding > player_b.seeding {
-        Ordering::Greater
-    } else {
-        Ordering::Equal
-    }
-}
 
-fn interleave_slices<T: Clone>(xs: &[T], ys: &[T]) -> Vec<T> {
-    if xs.len() != ys.len() {
-        panic!("Slices for interleaving not same length.");
-    }
-    let mut out = Vec::new();
-    for i in 0..xs.len() {
-        out.push(xs[i].clone());
-        out.push(ys[i].clone());
-    }
-    out
-}
 
 fn calculate_number_of_rounds(num_players: usize) -> usize {
     if num_players == 0 {
@@ -241,7 +207,7 @@ fn generate_groups(players: &[Player], group_size: usize) -> Vec<Vec<Player>> {
     let mut players = players.clone().to_vec();
     use rand::Rng;
     rand::thread_rng().shuffle(&mut players);
-    players.sort_by(seeding_comparator);
+    players.sort_by(Player::seeding_comparator);
     let groups_count = total_players / group_size;
     let mut groups = (0..groups_count).map(|_| { Vec::<Player>::new() }).collect::<Vec<Vec<Player>>>();
     for i in 0..group_size {

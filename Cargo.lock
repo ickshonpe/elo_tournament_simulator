@@ -1,5 +1,5 @@
 [root]
-name = "Tournament_Predictor"
+name = "ELO_Tournament_Simulator"
 version = "0.1.0"
 dependencies = [
  "rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",

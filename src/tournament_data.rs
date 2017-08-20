@@ -1,6 +1,6 @@
 extern crate serde_yaml;
 
-use ::Player;
+use player::Player;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
