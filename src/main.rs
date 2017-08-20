@@ -16,7 +16,7 @@ struct GroupRecord {
     player: Player,
     wins: i64,
     losses: i64,
-    map_difference: i64
+    game_difference: i64
 }
 
 impl GroupRecord {
@@ -25,7 +25,7 @@ impl GroupRecord {
             player,
             wins: 0,
             losses: 0,
-            map_difference: 0
+            game_difference: 0
         }
     }
 }
@@ -53,8 +53,8 @@ fn main() {
                 let player_b: &Player = &group[player_b_index];
                 let (a_score, b_score) = predict_match_winner(player_a, player_b, 3);
 
-                group_standings[player_a_index].map_difference += a_score - b_score;
-                group_standings[player_b_index].map_difference += b_score - a_score;
+                group_standings[player_a_index].game_difference += a_score - b_score;
+                group_standings[player_b_index].game_difference += b_score - a_score;
                 println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, if a_score > b_score { &player_a.name } else { &player_b.name });
                 if a_score > b_score {
                     group_standings[player_a_index].wins += 1;
@@ -67,7 +67,7 @@ fn main() {
         }
         println!("Final Standings:");
         for i in 0..group.len() {
-            println!("\t{}: wins: {}, losses: {}, map diff: {} ", group_standings[i].player.name, group_standings[i].wins, group_standings[i].losses, group_standings[i].map_difference);
+            println!("\t{}: wins: {}, losses: {}, game diff: {} ", group_standings[i].player.name, group_standings[i].wins, group_standings[i].losses, group_standings[i].game_difference);
         }
         println!("qualifiers for knockout:");
 
@@ -81,34 +81,14 @@ fn main() {
 
     // Knockout stages
     let mut knockout_players: Vec<Player> = interleave_slices(&knockout_high_seeds, &knockout_low_seeds.iter().rev().cloned().collect::<Vec<Player>>());
-
     let number_of_knockout_rounds = calculate_number_of_rounds(knockout_players_count);
-    println!("Number of knockout rounds: {}", number_of_knockout_rounds);
+    for i in 0..number_of_knockout_rounds {
+        let remaining_players = knockout_players.len();
+        println!("Round {}, {} players remain.", i, remaining_players );
+        knockout_players = predict_knockout_matches(knockout_players, if remaining_players == 2 { 5 } else { 3 });
+    }
     println!();
-    println!("Knockout Round of 16");
-    let knockout_players = predict_knockout_matches(knockout_players, 3);
-
-    println!();
-    println!("Quarter Finals");
-    let mut round_of_4 = predict_knockout_matches(knockout_players, 3);
-
-    println!();
-    println!("Semi Finals");
-    let mut finalists = predict_knockout_matches(round_of_4, 3);
-    println!();
-    println!("Final");
-    let player_a = finalists[0].clone();
-    let player_b = finalists[1].clone();
-    let (a_score, b_score) = predict_match_winner(&player_a, &player_b, 3);
-    let winner = if a_score > b_score {
-        player_a.clone()
-    } else {
-        player_b.clone()
-    };
-    println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
-
-    println!();
-    println!("The Tournament Champion is {}!", winner.name);
+    println!("The Tournament Champion is {}!", knockout_players[0].name);
 
 }
 
@@ -132,14 +112,14 @@ fn predict_round_winner<'a>(a: &'a Player, b : &'a Player) -> &'a Player {
     }
 }
 
-fn predict_match_winner(player_a: &Player, player_b: &Player, num_rounds: i64) -> (i64, i64) {
-    if num_rounds % 2 == 0 || num_rounds < 1 {
-        panic!("Invalid numbers of rounds for a match: {}", num_rounds);
+fn predict_match_winner(player_a: &Player, player_b: &Player, num_games: i64) -> (i64, i64) {
+    if num_games % 2 == 0 || num_games < 1 {
+        panic!("Invalid numbers of rounds for a match: {}", num_games);
     }
-    let target = num_rounds / 2 + 1;
+    let target = num_games / 2 + 1;
     let mut a_score = 0;
     let mut b_score = 0;
-    for map in 0..num_rounds {
+    for game in 0..num_games {
         let map_result = predict_round_winner(player_a, player_b);
         if map_result == player_a {
             a_score += 1;
@@ -182,16 +162,14 @@ fn group_comparator(a: &GroupRecord, b: &GroupRecord) -> Ordering {
     if b.wins > a.wins {
         return Ordering::Less;
     }
-    if a.map_difference > b.map_difference {
+    if a.game_difference > b.game_difference {
         return Ordering::Greater;
     }
-    if b.map_difference > a.map_difference {
+    if b.game_difference > a.game_difference {
         return Ordering::Less;
     }
     Ordering::Less
 }
-
-
 
 fn calculate_number_of_rounds(num_players: usize) -> usize {
     if num_players == 0 {
@@ -200,7 +178,6 @@ fn calculate_number_of_rounds(num_players: usize) -> usize {
         (num_players as f64).log2().ceil() as usize
     }
 }
-
 
 fn generate_groups(players: &[Player], group_size: usize) -> Vec<Vec<Player>> {
     let total_players = players.len();
