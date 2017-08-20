@@ -1,19 +1,26 @@
 extern crate rand;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 mod tournament_data;
+mod player;
+mod tournament;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Player {
     pub name: String,
-    pub elo: i64
+    pub elo: i64,
+    pub seeding: i64    // lower means better
 }
 
 impl Player {
-    pub fn new(name: &str, elo: i64) -> Player {
+    pub fn new(name: &str, elo: i64, seeding: i64) -> Player {
         let name = String::from(name);
         Player {
             name,
-            elo
+            elo,
+            seeding
         }
     }
 }
@@ -38,24 +45,14 @@ impl GroupRecord {
 }
 
 fn main() {
-    let (mut top_seeds, mut mid_seeds, mut low_seeds) = tournament_data::get_player_data();
-
-    let total_players = top_seeds.len() + mid_seeds.len() + low_seeds.len();
+    let mut player_data = tournament_data::load_players();
+    let total_players = player_data.len();
     let group_size = 4;
-    let groups_count = total_players / group_size;
-    let mut groups: Vec<Vec<Player>> = Vec::with_capacity(groups_count);
-    let knockout_players = total_players / 2;
-    let mut knockout_high_seeds: Vec<Player> = Vec::with_capacity(knockout_players / 2);
-    let mut knockout_low_seeds: Vec<Player> = Vec::with_capacity(knockout_players / 2);
-
-    for i in 0..groups_count {
-        let mut group : Vec<Player> = Vec::with_capacity(group_size);
-        group.push(draw_player(&mut top_seeds));
-        group.push(draw_player(&mut top_seeds));
-        group.push(draw_player(&mut mid_seeds));
-        group.push(draw_player(&mut low_seeds));
-        groups.push(group);
-    }
+    let groups_count = player_data.len() / group_size;
+    let mut groups = generate_groups(&player_data, 4);
+    let knockout_players_count = total_players / 2;
+    let mut knockout_high_seeds = Vec::<Player>::new();
+    let mut knockout_low_seeds = Vec::<Player>::new();
 
     for (i, group) in groups.iter().enumerate() {
         println!("Group {}:", i);
@@ -68,14 +65,12 @@ fn main() {
             for player_b_index in player_a_index + 1..group.len() {
                 let player_a: &Player = &group[player_a_index];
                 let player_b: &Player = &group[player_b_index];
-
                 let (a_score, b_score) = predict_match_winner(player_a, player_b, 3);
 
                 group_standings[player_a_index].map_difference += a_score - b_score;
                 group_standings[player_b_index].map_difference += b_score - a_score;
-                println!("\t{} vs {} -> {} to {}", player_a.name, player_b.name, a_score, b_score);
+                println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, if a_score > b_score { &player_a.name } else { &player_b.name });
                 if a_score > b_score {
-
                     group_standings[player_a_index].wins += 1;
                     group_standings[player_b_index].losses += 1;
                 } else {
@@ -86,7 +81,7 @@ fn main() {
         }
         println!("Final Standings:");
         for i in 0..group.len() {
-            println!("\t{}: wins: {}, losses: {}, maps: {} ", group_standings[i].player.name, group_standings[i].wins, group_standings[i].losses, group_standings[i].map_difference);
+            println!("\t{}: wins: {}, losses: {}, map diff: {} ", group_standings[i].player.name, group_standings[i].wins, group_standings[i].losses, group_standings[i].map_difference);
         }
         println!("qualifiers for knockout:");
 
@@ -99,54 +94,21 @@ fn main() {
     }
 
     // Knockout stages
-    let mut knockout_players: Vec<Player> = Vec::new();
+    let mut knockout_players: Vec<Player> = interleave_slices(&knockout_high_seeds, &knockout_low_seeds);
+
+    let number_of_knockout_rounds = calculate_number_of_rounds(knockout_players_count);
+    println!("Number of knockout rounds: {}", number_of_knockout_rounds);
     println!();
     println!("Knockout Round of 16");
+    let knockout_players = predict_knockout_matches(knockout_players, 3);
 
-    for i in 0..8 {
-        let player_a = draw_player(&mut knockout_high_seeds);
-        let player_b = draw_player(&mut knockout_low_seeds);
-        let (a_score, b_score) = predict_match_winner(&player_a, &player_b, 3);
-        let winner = if a_score > b_score {
-            player_a.clone()
-        } else {
-            player_b.clone()
-        };
-        println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
-        knockout_players.push(winner);
-    }
     println!();
     println!("Quarter Finals");
-    let mut round_of_4 = Vec::new();
-    for i in 0..4 {
-        let player_a = knockout_players[i * 2].clone();
-        let player_b = knockout_players[i * 2 + 1].clone();
-        let (a_score, b_score) = predict_match_winner(&player_a, &player_b, 3);
-        let winner = if a_score > b_score {
-            player_a.clone()
-        } else {
-            player_b.clone()
-        };
-        println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
-        round_of_4.push(winner);
-    }
+    let mut round_of_4 = predict_knockout_matches(knockout_players, 3);
 
     println!();
     println!("Semi Finals");
-    let mut finalists = Vec::new();
-    for i in 0..2 {
-        let player_index = i * 2;
-        let player_a = round_of_4[player_index].clone();
-        let player_b = round_of_4[player_index + 1].clone();
-        let (a_score, b_score) = predict_match_winner(&player_a, &player_b, 3);
-        let winner = if a_score > b_score {
-            player_a.clone()
-        } else {
-            player_b.clone()
-        };
-        println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
-        finalists.push(winner);
-    }
+    let mut finalists = predict_knockout_matches(round_of_4, 3);
     println!();
     println!("Final");
     let player_a = finalists[0].clone();
@@ -160,7 +122,7 @@ fn main() {
     println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
 
     println!();
-    println!("The Tournament Champion is {}", winner.name);
+    println!("The Tournament Champion is {}!", winner.name);
 
 }
 
@@ -170,9 +132,7 @@ fn draw_player(seed_group: &mut Vec<Player>) -> Player {
     seed_group.remove(drawn_index)
 }
 
-
-
-fn predict_map_winner<'a>(a: &'a Player, b : &'a Player) -> &'a Player {
+fn predict_round_winner<'a>(a: &'a Player, b : &'a Player) -> &'a Player {
     use std::f64;
     use rand::Rng;
     let diff = (b.elo - a.elo) as f64;
@@ -194,7 +154,7 @@ fn predict_match_winner(player_a: &Player, player_b: &Player, num_rounds: i64) -
     let mut a_score = 0;
     let mut b_score = 0;
     for map in 0..num_rounds {
-        let map_result = predict_map_winner(player_a, player_b);
+        let map_result = predict_round_winner(player_a, player_b);
         if map_result == player_a {
             a_score += 1;
         } else {
@@ -205,6 +165,27 @@ fn predict_match_winner(player_a: &Player, player_b: &Player, num_rounds: i64) -
         }
     }
     (a_score, b_score)
+}
+
+fn predict_knockout_matches(knockout_players: Vec<Player>, num_rounds: i64) -> Vec<Player> {
+    let mut winners = Vec::new();
+    let num_matches = knockout_players.len() / 2;
+    for i in 0..num_matches {
+        let player_a = knockout_players[i * 2].clone();
+        let player_b = knockout_players[i * 2 + 1].clone();
+        let (a_score, b_score) = predict_match_winner(&player_a, &player_b, num_rounds);
+        let winner = if a_score > b_score {
+            player_a.clone()
+        } else {
+            player_b.clone()
+        };
+        println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
+        winners.push(winner);
+    }
+    if knockout_players.len() %2 == 1 {
+        winners.push(knockout_players.last().unwrap().clone());
+    }
+    winners
 }
 
 use std::cmp::Ordering;
@@ -222,4 +203,52 @@ fn group_comparator(a: &GroupRecord, b: &GroupRecord) -> Ordering {
         return Ordering::Less;
     }
     Ordering::Less
+}
+
+fn seeding_comparator(player_a: &Player, player_b: &Player) -> Ordering {
+    if player_a.seeding < player_b.seeding {
+        Ordering::Less
+    } else if player_a.seeding > player_b.seeding {
+        Ordering::Greater
+    } else {
+        Ordering::Equal
+    }
+}
+
+fn interleave_slices<T: Clone>(xs: &[T], ys: &[T]) -> Vec<T> {
+    if xs.len() != ys.len() {
+        panic!("Slices for interleaving not same length.");
+    }
+    let mut out = Vec::new();
+    for i in 0..xs.len() {
+        out.push(xs[i].clone());
+        out.push(ys[i].clone());
+    }
+    out
+}
+
+fn calculate_number_of_rounds(num_players: usize) -> usize {
+    if num_players == 0 {
+        0
+    } else {
+        (num_players as f64).log2().ceil() as usize
+    }
+}
+
+
+fn generate_groups(players: &[Player], group_size: usize) -> Vec<Vec<Player>> {
+    let total_players = players.len();
+    let mut players = players.clone().to_vec();
+    use rand::Rng;
+    rand::thread_rng().shuffle(&mut players);
+    players.sort_by(seeding_comparator);
+    let groups_count = total_players / group_size;
+    let mut groups = (0..groups_count).map(|_| { Vec::<Player>::new() }).collect::<Vec<Vec<Player>>>();
+    for i in 0..group_size {
+        for group in &mut groups {
+            let next_player = players.pop().unwrap();
+            group.push(next_player);
+        }
+    }
+    groups
 }

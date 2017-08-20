@@ -5,3 +5,6 @@ authors = ["David Curthoys <david.curthoys@googlemail.com>"]
 
 [dependencies]
 rand = "*"
+serde = "*"
+serde_derive = "*"
+serde_yaml = "*"
