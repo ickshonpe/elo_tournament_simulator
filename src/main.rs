@@ -30,6 +30,7 @@ impl GroupRecord {
     }
 }
 
+
 fn main() {
     let mut player_data = tournament_data::load_players();
     let total_players = player_data.len();
@@ -52,7 +53,6 @@ fn main() {
                 let player_a: &Player = &group[player_a_index];
                 let player_b: &Player = &group[player_b_index];
                 let (a_score, b_score) = predict_match_winner(player_a, player_b, 3);
-
                 group_standings[player_a_index].game_difference += a_score - b_score;
                 group_standings[player_b_index].game_difference += b_score - a_score;
                 println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, if a_score > b_score { &player_a.name } else { &player_b.name });
