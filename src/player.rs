@@ -18,12 +18,6 @@ impl Player {
     }
 
     pub fn seeding_comparator(player_a: &Player, player_b: &Player) -> Ordering {
-        if player_a.seeding < player_b.seeding {
-            Ordering::Less
-        } else if player_a.seeding > player_b.seeding {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
-        }
+        player_a.seeding.cmp(&player_b.seeding)
     }
 }

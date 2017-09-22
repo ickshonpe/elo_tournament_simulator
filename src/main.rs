@@ -5,7 +5,6 @@ extern crate serde_derive;
 
 mod tournament_data;
 mod player;
-mod tournament;
 mod util;
 
 use player::Player;
@@ -156,19 +155,12 @@ fn predict_knockout_matches(knockout_players: Vec<Player>, num_rounds: i64) -> V
 
 use std::cmp::Ordering;
 fn group_comparator(a: &GroupRecord, b: &GroupRecord) -> Ordering {
-    if a.wins > b.wins {
-        return Ordering::Greater;
+    let result: Ordering = a.wins.cmp(&b.wins);
+    if result == Ordering::Equal {
+        a.game_difference.cmp(&b.game_difference)
+    } else {
+        result
     }
-    if b.wins > a.wins {
-        return Ordering::Less;
-    }
-    if a.game_difference > b.game_difference {
-        return Ordering::Greater;
-    }
-    if b.game_difference > a.game_difference {
-        return Ordering::Less;
-    }
-    Ordering::Less
 }
 
 fn calculate_number_of_rounds(num_players: usize) -> usize {
