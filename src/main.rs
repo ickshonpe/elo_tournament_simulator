@@ -30,11 +30,10 @@ impl GroupRecord {
 }
 
 fn main() {
-    let mut player_data = tournament_data::load_players();
+    let player_data = tournament_data::load_players();
     let total_players = player_data.len();
     let group_size = 4;
-    let groups_count = player_data.len() / group_size;
-    let mut groups = generate_groups(&player_data, 4);
+    let groups = generate_groups(&player_data, 4);
     let knockout_players_count = total_players / 2;
     let mut knockout_high_seeds = Vec::<Player>::new();
     let mut knockout_low_seeds = Vec::<Player>::new();
@@ -54,12 +53,12 @@ fn main() {
                 group_standings[player_a_index].game_difference += a_score - b_score;
                 group_standings[player_b_index].game_difference += b_score - a_score;
                 println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, if a_score > b_score { &player_a.name } else { &player_b.name });
-                if a_score > b_score {
-                    group_standings[player_a_index].wins += 1;
-                    group_standings[player_b_index].losses += 1;
-                } else {
+                if a_score < b_score {
                     group_standings[player_a_index].losses += 1;
                     group_standings[player_b_index].wins += 1;
+                } else {
+                    group_standings[player_a_index].wins += 1;
+                    group_standings[player_b_index].losses += 1;
                 }
             }
         }
@@ -88,12 +87,6 @@ fn main() {
     println!();
     println!("The Tournament Champion is {}!", knockout_players[0].name);
 
-}
-
-fn draw_player(seed_group: &mut Vec<Player>) -> Player {
-    use rand::Rng;
-    let drawn_index = rand::thread_rng().gen_range(0, seed_group.len());
-    seed_group.remove(drawn_index)
 }
 
 fn predict_round_winner<'a>(a: &'a Player, b : &'a Player) -> &'a Player {
@@ -161,10 +154,9 @@ fn group_comparator(a: &GroupRecord, b: &GroupRecord) -> Ordering {
 }
 
 fn calculate_number_of_rounds(num_players: usize) -> usize {
-    if num_players == 0 {
-        0
-    } else {
-        (num_players as f64).log2().ceil() as usize
+    match num_players {
+        0 => 0,
+        _ => (num_players as f64).log2().ceil() as usize
     }
 }
 
