@@ -29,7 +29,6 @@ impl GroupRecord {
     }
 }
 
-
 fn main() {
     let mut player_data = tournament_data::load_players();
     let total_players = player_data.len();
@@ -118,7 +117,7 @@ fn predict_match_winner(player_a: &Player, player_b: &Player, num_games: i64) ->
     let target = num_games / 2 + 1;
     let mut a_score = 0;
     let mut b_score = 0;
-    for game in 0..num_games {
+    for _ in 0..num_games {
         let map_result = predict_round_winner(player_a, player_b);
         if map_result == player_a {
             a_score += 1;
@@ -139,11 +138,11 @@ fn predict_knockout_matches(knockout_players: Vec<Player>, num_rounds: i64) -> V
         let player_a = knockout_players[i * 2].clone();
         let player_b = knockout_players[i * 2 + 1].clone();
         let (a_score, b_score) = predict_match_winner(&player_a, &player_b, num_rounds);
-        let winner = if a_score > b_score {
-            player_a.clone()
+        let winner = if a_score < b_score {
+            &player_b
         } else {
-            player_b.clone()
-        };
+            &player_a
+        }.clone();
         println!("\t{} vs {}, {} to {} -> {} wins ", player_a.name, player_b.name, a_score, b_score, winner.name);
         winners.push(winner);
     }
@@ -155,11 +154,9 @@ fn predict_knockout_matches(knockout_players: Vec<Player>, num_rounds: i64) -> V
 
 use std::cmp::Ordering;
 fn group_comparator(a: &GroupRecord, b: &GroupRecord) -> Ordering {
-    let result: Ordering = a.wins.cmp(&b.wins);
-    if result == Ordering::Equal {
-        a.game_difference.cmp(&b.game_difference)
-    } else {
-        result
+    match a.wins.cmp(&b.wins) {
+        Ordering::Equal => a.game_difference.cmp(&b.game_difference),
+        any_other_ordering => any_other_ordering
     }
 }
 
@@ -179,7 +176,7 @@ fn generate_groups(players: &[Player], group_size: usize) -> Vec<Vec<Player>> {
     players.sort_by(Player::seeding_comparator);
     let groups_count = total_players / group_size;
     let mut groups = (0..groups_count).map(|_| { Vec::<Player>::new() }).collect::<Vec<Vec<Player>>>();
-    for i in 0..group_size {
+    for _ in 0..group_size {
         for group in &mut groups {
             let next_player = players.pop().unwrap();
             group.push(next_player);
